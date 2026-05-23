@@ -114,7 +114,7 @@ export default function Home() {
                             Enterprise-grade security for everyone
                         </h2>
                         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                            We &apos; ve built our platform from the ground up to ensure your data remains private, secure, and always accessible when you need it.
+                            We&apos;ve built our platform from the ground up to ensure your data remains private, secure, and always accessible when you need it.
                         </p>
                     </div>
 

@@ -14,6 +14,8 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getGridFSBucket } from "@/lib/mongodb";
+import { authenticateRequest } from "@/lib/auth";
+import { getFilesCollection } from "@/models/File";
 
 interface DeleteRequestBody {
     fileId: string;
@@ -29,10 +31,20 @@ interface ErrorResponse {
     error: string;
 }
 
-export async function DELETE(
+export async function POST(
     request: NextRequest,
 ): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
     try {
+        const user = authenticateRequest(
+            request.headers.get("authorization"),
+        );
+        if (!user) {
+            return NextResponse.json(
+                { success: false as const, error: "Unauthorized" },
+                { status: 401 },
+            );
+        }
+
         const body: unknown = await request.json();
 
         if (
@@ -55,8 +67,24 @@ export async function DELETE(
             );
         }
 
+        const oid = new ObjectId(fileId);
+
+        // Verify ownership
+        const filesCol = await getFilesCollection();
+        const fileMeta = await filesCol.findOne({
+            gridfsId: oid,
+            ownerId: new ObjectId(user.userId),
+        });
+        if (!fileMeta) {
+            return NextResponse.json(
+                { success: false as const, error: "File not found." },
+                { status: 404 },
+            );
+        }
+
         const bucket = await getGridFSBucket();
-        await bucket.delete(new ObjectId(fileId));
+        await bucket.delete(oid);
+        await filesCol.deleteOne({ _id: fileMeta._id });
 
         return NextResponse.json(
             { success: true as const, message: "File deleted successfully." },

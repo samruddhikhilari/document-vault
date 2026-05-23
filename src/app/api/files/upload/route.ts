@@ -27,6 +27,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getGridFSBucket } from "@/lib/mongodb";
 import { Readable } from "stream";
+import { authenticateRequest } from "@/lib/auth";
+import { getFilesCollection } from "@/models/File";
 
 // ─── Request / Response Types ────────────────────────────────────────────────
 
@@ -82,6 +84,17 @@ export async function POST(
     request: NextRequest,
 ): Promise<NextResponse<UploadSuccessResponse | ErrorResponse>> {
     try {
+        // 0. Authenticate
+        const user = authenticateRequest(
+            request.headers.get("authorization"),
+        );
+        if (!user) {
+            return NextResponse.json(
+                { success: false as const, error: "Unauthorized" },
+                { status: 401 },
+            );
+        }
+
         // 1. Parse the JSON request body
         const body: unknown = await request.json();
 
@@ -139,6 +152,7 @@ export async function POST(
                         salt,
                         iv,
                         originalFileName: fileName,
+                        ownerId: user.userId,
                         uploadedAt: new Date().toISOString(),
                     },
                 });
@@ -154,7 +168,19 @@ export async function POST(
             },
         );
 
-        // 7. Return the fileId to the client
+        // 7. Store metadata in the files collection
+        const filesCol = await getFilesCollection();
+        await filesCol.insertOne({
+            filename: fileName,
+            ownerId: new ObjectId(user.userId),
+            gridfsId: fileId,
+            size: cipherBuffer.length,
+            iv,
+            salt,
+            uploadDate: new Date(),
+        } as any);
+
+        // 8. Return the fileId to the client
         return NextResponse.json(
             {
                 success: true as const,

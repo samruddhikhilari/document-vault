@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -15,6 +16,7 @@ export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -59,14 +61,32 @@ export default function Register() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    // Simulate API call
-    console.log("Form Data Submitted:", formData);
-    
-    setTimeout(() => {
+    setErrors({});
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem("token", data.token);
+        setIsSuccess(true);
+        setFormData({ name: "", email: "", password: "", confirmPassword: "" });
+        router.push("/dashboard");
+      } else {
+        setErrors({ email: data.error || "Registration failed." });
+      }
+    } catch {
+      setErrors({ email: "Network error. Please try again." });
+    } finally {
       setIsLoading(false);
-      setIsSuccess(true);
-      setFormData({ name: "", email: "", password: "", confirmPassword: "" });
-    }, 1500);
+    }
   };
 
   return (

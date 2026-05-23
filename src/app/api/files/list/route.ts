@@ -9,8 +9,10 @@
 
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
-import { getDatabase } from "@/lib/mongodb";
+import { NextRequest, NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
+import { authenticateRequest } from "@/lib/auth";
+import { getFilesCollection } from "@/models/File";
 
 interface FileListItem {
     fileId: string;
@@ -29,25 +31,29 @@ interface ErrorResponse {
     error: string;
 }
 
-export async function GET(): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
+export async function GET(request: NextRequest): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
     try {
-        const db = await getDatabase();
-        const filesCollection = db.collection("encryptedFiles.files");
+        const user = authenticateRequest(
+            request.headers.get("authorization"),
+        );
+        if (!user) {
+            return NextResponse.json(
+                { success: false as const, error: "Unauthorized" },
+                { status: 401 },
+            );
+        }
 
-        const cursor = filesCollection.find({}).sort({ uploadDate: -1 });
-        const documents = await cursor.toArray();
+        const filesCol = await getFilesCollection();
+        const documents = await filesCol
+            .find({ ownerId: new ObjectId(user.userId) })
+            .sort({ uploadDate: -1 })
+            .toArray();
 
         const files: FileListItem[] = documents.map((doc) => ({
-            fileId: doc._id.toHexString(),
-            fileName:
-                (doc.metadata as { originalFileName?: string })?.originalFileName ??
-                doc.filename ??
-                "unknown",
-            uploadedAt:
-                (doc.metadata as { uploadedAt?: string })?.uploadedAt ??
-                (doc.uploadDate as Date)?.toISOString() ??
-                "",
-            length: (doc.length as number) ?? 0,
+            fileId: doc.gridfsId.toHexString(),
+            fileName: doc.filename ?? "unknown",
+            uploadedAt: doc.uploadDate?.toISOString() ?? "",
+            length: doc.size ?? 0,
         }));
 
         return NextResponse.json(

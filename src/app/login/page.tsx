@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -49,14 +51,31 @@ export default function Login() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    // Simulate API call
-    console.log("Form Data Submitted:", formData);
-    
-    setTimeout(() => {
+    setErrors({});
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem("token", data.token);
+        setIsSuccess(true);
+        setFormData({ email: "", password: "" });
+        router.push("/dashboard");
+      } else {
+        setErrors({ email: data.error || "Login failed." });
+      }
+    } catch {
+      setErrors({ email: "Network error. Please try again." });
+    } finally {
       setIsLoading(false);
-      setIsSuccess(true);
-      setFormData({ email: "", password: "" });
-    }, 1500);
+    }
   };
 
   return (
@@ -258,7 +277,7 @@ export default function Login() {
 
           {/* Register Link */}
           <div className="mt-8 text-center text-sm text-gray-600">
-            Don &apos; t have an account?{" "}
+            Don't have an account?{" "}
             <Link
               href="/register"
               className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline transition-colors"

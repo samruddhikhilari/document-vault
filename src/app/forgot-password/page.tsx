@@ -32,8 +32,6 @@ export default function ForgotPassword() {
     if (!validateEmail()) return;
 
     setIsLoading(true);
-    // Simulate API call
-    console.log("Password reset email sent to:", email);
 
     setTimeout(() => {
       setIsLoading(false);
@@ -59,7 +57,7 @@ export default function ForgotPassword() {
               Reset Password
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Enter your email address and we &apos; ll send you a link to reset your password
+              Enter your email address and we will send you a link to reset your password
             </p>
           </div>
 

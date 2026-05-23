@@ -27,6 +27,8 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { getGridFSBucket, getDatabase } from "@/lib/mongodb";
+import { authenticateRequest } from "@/lib/auth";
+import { getFilesCollection } from "@/models/File";
 
 // ─── Response Types ──────────────────────────────────────────────────────────
 
@@ -70,6 +72,17 @@ export async function POST(
     request: NextRequest,
 ): Promise<NextResponse<RetrieveSuccessResponse | ErrorResponse>> {
     try {
+        // 0. Authenticate
+        const user = authenticateRequest(
+            request.headers.get("authorization"),
+        );
+        if (!user) {
+            return NextResponse.json(
+                { success: false as const, error: "Unauthorized" },
+                { status: 401 },
+            );
+        }
+
         // 1. Parse the JSON body
         const body: unknown = await request.json();
 
@@ -102,7 +115,20 @@ export async function POST(
 
         const objectId = new ObjectId(fileId);
 
-        // 3. Look up the file metadata from GridFS files collection
+        // 3. Verify ownership via files collection
+        const filesCol = await getFilesCollection();
+        const fileMeta = await filesCol.findOne({
+            gridfsId: objectId,
+            ownerId: new ObjectId(user.userId),
+        });
+        if (!fileMeta) {
+            return NextResponse.json(
+                { success: false as const, error: "File not found." },
+                { status: 404 },
+            );
+        }
+
+        // 3b. Look up the GridFS file document for streaming
         const db = await getDatabase();
         const filesCollection = db.collection("encryptedFiles.files");
         const fileDoc = await filesCollection.findOne({ _id: objectId });
